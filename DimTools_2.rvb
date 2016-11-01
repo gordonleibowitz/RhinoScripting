@@ -1,0 +1,140 @@
+Option Explicit
+'Script written by <Gordon Leibowitz>
+'Script version Saturday, 8 October 2016 10:18:01 PM
+
+Rhino.AddStartupScript Rhino.LastLoadedScriptFile()
+Rhino.AddAlias "DimLinking", "_NoEcho _-Runscript (DimLinking)"
+Rhino.AddAlias "DimLine", "_NoEcho _-Runscript (DimLine)"
+Rhino.AddAlias "DimO", "_NoEcho _-Runscript (DimOverall)"
+Rhino.AddAlias "DimD", "_NoEcho _-Runscript (DimDatum)"
+
+'Call DimLinking()
+'Call DimLine()
+'Call DimOverall
+Sub DimLinking()
+	'GetOption Example
+	Const OPT_SGL = 0
+	Const OPT_BLN = 1
+	Dim arrDirection, arrLayer, arrOverall, arrQuit
+	Dim preOpt, opt, rc, i
+	
+	Dim arrPlane, arrOrigin, arrOffset, arrLocation
+	Dim j, arrP, quit
+	Rhino.Ortho(True)
+	
+	Dim strCurrDimStyle, dblTextHeight
+
+	quit = False
+	arrDirection = Array(OPT_BLN, "Direction", "Horizontal", "Vertical", False)
+	arrLayer = Array(OPT_SGL, "Layer")
+	arrOverall = Array(OPT_SGL, "Overall")
+	arrQuit = Array(OPT_SGL, "Quit")
+	'Break Otion?
+	
+	opt = Array(arrDirection, arrLayer, arrQuit)
+	preOpt = Array(arrDirection, arrQuit)
+	rc = Rhino.GetOption("Dimension options", preOpt)
+	
+	If rc(0) = False Then
+		arrPlane = Rhino.WorldXYPlane()
+	ElseIf rc(0) = True Then
+		arrPlane = Rhino.RotatePlane(Rhino.WorldXYPlane(), 90, Array(0, 0, 1))
+	End If
+	If rc(1) = True Then
+		Exit Sub
+	End If
+	
+	arrPlane = Rhino.WorldXYPlane()
+	arrLocation = Rhino.GetPoint("Height")
+	
+	strCurrDimstyle = Rhino.CurrentDimStyle()
+	dblTextHeight = Rhino.DimStyleTextHeight(strCurrDimstyle)
+	
+	Do Until quit = True
+		arrP = Rhino.GetPoints(False, True, "Select Points", "Select Points. Enter to End.")
+		For j = 0 To (UBound(arrP) - 1)
+			Rhino.AddLinearDimension arrPlane, arrP(j), arrP(j + 1), arrLocation
+		Next
+		
+		rc = Rhino.GetOption("Dimension options", opt)
+		
+		If rc(0) = False Then
+			arrPlane = Rhino.WorldXYPlane()
+		ElseIf rc(0) = True Then
+			arrPlane = Rhino.RotatePlane(Rhino.WorldXYPlane(), 90, Array(0, 0, 1))
+			arrLocation = Rhino.GetPoint("Height")			
+		End If
+		
+		If rc(1) = True Then
+			arrLocation(1) = arrLocation(1) + dblTextHeight + 1
+			arrLocation(2) = arrLocation(2) + dblTextHeight + 1
+		End If
+		
+		If rc(2) = True Then
+			'Stuff pertaining to overall dim style
+		End If
+		
+		If rc(3) = True Then
+			Exit Do
+		End If
+	Loop
+	Rhino.Ortho(False)
+End Sub
+
+Sub DimLine()
+	Dim strLine
+	Dim arrPlane, arrHeight
+	
+	Const OPT_SGL = 0
+	Const OPT_BLN = 1
+	Dim arrDirection, arrQuit
+	Dim preOpt, rc
+	
+	arrDirection = Array(OPT_BLN, "Direction", "Horizontal", "Vertical", False)
+	arrQuit = Array(OPT_SGL, "Quit")
+	
+	preOpt = Array(arrDirection, arrQuit)
+	rc = Rhino.GetOption("Dimension options", preOpt)
+	
+	If rc(0) = False Then
+		arrPlane = Rhino.WorldXYPlane()
+	ElseIf rc(0) = True Then
+		arrPlane = Rhino.RotatePlane(Rhino.WorldXYPlane(), 90, Array(0, 0, 1))
+	End If
+	If rc(1) = True Then
+		Exit Sub
+	End If
+
+	strLine = Rhino.GetObject("Select line for Dimension", 0, True)
+	arrHeight = Rhino.GetPoint("Pick a Height")
+	
+	Rhino.AddLinearDimension arrPlane, Rhino.CurveStartPoint(strLine), Rhino.CurveEndPoint(strLine), arrHeight
+End Sub
+
+Sub DimOverall()
+	Dim arrDims, strDim, DimText, strText
+
+	arrDims = Rhino.GetObjects("Choose Dimensions", , , True)
+
+	For Each strDim In arrDims
+		If Rhino.IsDimension(strDim) Then
+			DimText = Rhino.DimensionText(strDim)
+			strText = DimText + " (OVERALL)"
+			Rhino.DimensionUserText strDim, strText
+		End If
+	Next
+End Sub
+
+Sub DimDatum()
+	Dim arrDims, strDim, DimText, strText
+
+	arrDims = Rhino.GetObjects("Choose Dimensions", , , True)
+
+	For Each strDim In arrDims
+		If Rhino.IsDimension(strDim) Then
+			DimText = Rhino.DimensionText(strDim)
+			strText = DimText + " (TO DATUM)"
+			Rhino.DimensionUserText strDim, strText
+		End If
+	Next
+End Sub

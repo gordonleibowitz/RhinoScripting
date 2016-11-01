@@ -1,0 +1,127 @@
+Option Explicit
+'Script written by <Gordon Leibowitz>
+'Script version Saturday, 8 October 2016 10:18:01 PM
+
+Rhino.AddStartupScript Rhino.LastLoadedScriptFile()
+Rhino.AddAlias "DrawingTitle", "_NoEcho _-Runscript (DrawingTitle)"
+Rhino.AddAlias "ElevationMarker", "_NoEcho _-Runscript (Elevation)"
+
+'Call DrawingTitle()
+' Call Elevation()
+'Call Section()
+
+Sub DrawingTitle()
+	Dim dblRad, dblOffset
+	Dim arrLocation, arrCircCenter, strCirc
+	Dim arrDwgNum, arrTitle, arrScale
+	Dim strDwgNum, strTitle, strScale
+	Dim txtDwgNum, txtTitle, txtScale, arrTitleBB, arrScaleBB, dblLineLength
+	Dim strGroup, lnBase
+	Dim arrBaseEnd
+	
+	dblRad = 5.543
+	dblOffset = 2.731
+	
+	arrLocation = Rhino.GetPoint("Choose Origin")
+	arrCircCenter = arrLocation
+	arrCircCenter(0) = arrLocation(0) - dblRad
+	
+	Rhino.EnableRedraw(False)
+	
+	strDwgNum = Rhino.GetString("Drawing Number")
+	strTitle = Rhino.GetString("Title", , Array("PLAN", "ELEVATION", "SECTION", "DETAIL", "PERSPECTIVE"))
+	strScale = Rhino.GetString("Drawing Scale", "10")
+	'strScale = Rhino.GetString("Drawing Scale", , Array("1:1 @ A0", "1:5 @ A0", "1:10 @ A0", "1:20 @ A0", "1:50 @ A0", "NTS"))
+
+	arrDwgNum = Array(arrLocation(0) - dblRad, arrLocation(1), arrLocation(2))
+	arrTitle = Array(arrLocation(0) + dblOffset, arrLocation(1) + 1.536, arrLocation(2))
+	arrScale = Array(arrLocation(0) + dblOffset, arrLocation(1) - 1.858, arrLocation(2))
+
+	strCirc = Rhino.AddCircle(arrCircCenter, dblRad)
+	txtDwgNum = Rhino.AddText(strDwgNum, arrDwgNum, 5,, 0, 4)
+	txtTitle = Rhino.AddText(strTitle, arrTitle, 3,, 1, 0)
+	txtScale = Rhino.AddText("1:" + strScale + " @ A0", arrScale, 3,, 0, 6)
+	
+	arrTitleBB = Rhino.BoundingBox(txtTitle)
+	arrScaleBB = Rhino.BoundingBox(txtScale)
+	dblLineLength = Rhino.Max(Array(Rhino.Distance(arrTitleBB(0), arrTitleBB(1)), Rhino.Distance(arrScaleBB(0), arrScaleBB(1))))
+	arrBaseEnd = Array(arrLocation(0) + dblOffset + dblLineLength, arrLocation(1), arrLocation(2))
+
+	lnBase = Rhino.AddLine(arrLocation, arrBaseEnd)
+	strGroup = Rhino.CurrentDetail(Rhino.CurrentView) + "000" + strDwgNum
+	Rhino.AddGroup(strGroup)
+	Rhino.AddObjectsToGroup Array(lnBase, strCirc, txtDwgNum, txtTitle, txtScale), strGroup
+	
+	Rhino.EnableRedraw(True)
+End Sub
+
+Sub Elevation()
+	Const OPT_LST = 4
+	Dim dblRad, dblLeg
+	Dim arrDirection, arrList, rc, dblRotate
+	Dim arrLocation, arrCircCenter, arrCircCenterR
+	Dim strCirc, arrTop, arrTopR, strOut, strOutB, strMini, strMiniB, strArc, strBrdr, strHatch
+	Dim strMidLine, strDwgNum, strPageNum, arrDwgNum, arrPageNum, txtDwgNum, txtPageNum, strGroup
+	
+	dblRad = 5.528
+	dblLeg = 8.88
+	dblRotate = 90
+	
+	arrDirection = Array("Left", "Right", "Bottom", "Top")
+	arrList = Array(OPT_LST, "Direction", arrDirection, 0)
+	rc = Rhino.GetOption("Scripting options", Array(arrList))
+	Select Case rc(0)
+		Case "0"    dblRotate = 0
+		Case "1"    dblRotate = 180
+		Case "2"    dblRotate = 90
+		Case "3"    dblRotate = 270
+	End Select
+
+	arrLocation = Rhino.GetPoint("Choose Origin")
+	
+	Rhino.EnableRedraw False
+	
+	arrCircCenter = Array(arrLocation(0) - dblLeg, arrLocation(1), arrLocation(2))
+	strCirc = Rhino.AddCircle(arrCircCenter, dblRad)
+	arrTop = Array(arrCircCenter(0), arrCircCenter(1) + dblLeg, arrCircCenter(2))
+	arrTopR = Array(arrCircCenter(0), arrCircCenter(1) + dblRad, arrCircCenter(2))
+	strOut = Rhino.AddLine(arrLocation, arrTop)
+	strMini = Rhino.AddLine(arrTop, arrTopR)
+	strArc = Rhino.AddArc3Pt(arrTopr, Array(arrTopR(0), arrTopR(1) - dblRad - dblRad, arrTopR(2)), Array(arrCircCenter(0) + dblRad, arrCircCenter(1), arrCircCenter(2)))
+	strOutB = Rhino.MirrorObject(strOut, arrLocation, arrCircCenter, True)
+	strMiniB = Rhino.MirrorObject(strMini, arrLocation, arrCircCenter, True)
+	strBrdr = Rhino.JoinCurves(Array(strOut, strMini, strArc, strMiniB, strOutB), True)
+	strHatch = Rhino.AddHatch(strBrdr(0), "Solid", 0, 0)
+	
+	Rhino.RotateObjects Array(strBrdr(0), strHatch, strCirc), arrLocation, dblRotate
+	arrCircCenterR = Rhino.CircleCenterPoint(strCirc)
+	
+	strMidLine = Rhino.AddLine(Array(arrCircCenterR(0) - dblRad, arrCircCenterR(1), arrCircCenterR(2)), Array(arrCircCenterR(0) + dblRad, arrCircCenterR(1), arrCircCenterR(2)))
+	strDwgNum = Rhino.GetString("Drawing Number")
+	strPageNum = Rhino.GetString("Page Reference", "-")
+	arrDwgNum = Array(arrCircCenterR(0), arrCircCenterR(1) + (dblRad / 2), arrCircCenterR(2))
+	arrPageNum = Array(arrCircCenterR(0), arrCircCenterR(1) - (dblRad / 2), arrCircCenterR(2))
+	txtDwgNum = Rhino.AddText(strDwgNum, arrDwgNum, 3,, 0, 4)
+	txtPageNum = Rhino.AddText(strPageNum, arrPageNum, 3,, 0, 4)
+	
+	strGroup = Rhino.CurrentDetail(Rhino.CurrentView) + "000" + strDwgNum + "Elevation"
+	Rhino.AddGroup(strGroup)
+	Rhino.AddObjectsToGroup Array(strCirc, strBrdr(0), strHatch, txtDwgNum, txtPageNum, strMidLine), strGroup
+	
+	Rhino.EnableRedraw True
+End Sub
+
+Sub Section()
+	'get object detail
+	'getobject line
+	'''''add detail and set left/front/back etc (would be nice to generate but lets do it later on)
+	'tcs the line to detail
+	'section using line endpoints and delete line
+	'create clipping plane from line
+	'options to detScale
+	'set view
+	'tcs section lines
+	
+	''make sure things are made on apprpropriate layers
+	''
+End Sub

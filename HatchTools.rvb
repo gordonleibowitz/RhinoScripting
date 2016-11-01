@@ -1,0 +1,69 @@
+Option Explicit
+'Script written by <Gordon Leibowitz>
+'Script copyrighted by <insert company name>
+'Script version Saturday, 8 October 2016 1:24:44 PM
+
+
+Rhino.AddStartupScript Rhino.LastLoadedScriptFile()
+Rhino.AddAlias "DoubleHatch", "_NoEcho _-Runscript (DoubleHatch)"
+Rhino.AddAlias "BorderHatch", "_NoEcho _-Runscript (BorderHatch)"
+
+
+'Call BorderHatch()
+'Call DoubleHatch()
+Sub DoubleHatch()
+	Dim strCurve, strHatchL, strHatchS
+	
+	strCurve = Rhino.GetObject("Select border for hatch", 0, True)
+	
+	Rhino.EnableRedraw(False)
+	strHatchS = Rhino.AddHatch(strCurve, "Solid", 0, 0)
+	Rhino.ObjectLayer strHatchS, "Caracss Hatch White"
+	strHatchL = Rhino.AddHatch(strCurve, "Hatch1", 8.0, 45)
+	Rhino.ObjectLayer strHatchL, "Carcass Hatch"
+	Rhino.EnableRedraw(True)
+End Sub
+
+Sub BorderHatch()
+	Dim strBase, arrDirection, dblDistance
+	Dim arrOffset, strTop, arrBase, arrTop, strS1, strS2
+	Dim arrJoin(3), strJoin
+	Dim strHatchL
+	Dim arrClosed
+	
+	strBase = Rhino.GetObject("Select base for Hatch", 0, True)
+	Rhino.CopyObject strBase
+	arrDirection = Rhino.GetPoint("Pick a Point")
+	dblDistance = Rhino.GetInteger("Pick a distance", 3)
+	
+	Rhino.EnableRedraw(False)
+	If Not Rhino.IsCurveClosed(strBase) Then
+		arrOffset = Rhino.OffsetCurve(strBase, arrDirection, dblDistance, , 1)
+		strTop = arrOffset(0)
+		strS1 = Rhino.AddLine(Rhino.CurveEndPoint(strTop), Rhino.CurveEndPoint(strBase))
+		strS2 = Rhino.AddLine(Rhino.CurveStartPoint(strTop), Rhino.CurveStartPoint(strBase))
+
+		arrJoin(0) = strS1
+		arrJoin(1) = strTop
+		arrJoin(2) = strS2
+		arrJoin(3) = strBase
+		strJoin = Rhino.JoinCurves(arrJoin, True)
+		
+		strHatchL = Rhino.AddHatch(strJoin(0), "Hatch1", 8.0, 45)
+		Rhino.ObjectLayer strHatchL, "Carcass Hatch"
+		Rhino.DeleteObject strJoin(0)
+		
+	Else
+		arrOffset = Rhino.OffsetCurve(strBase, arrDirection, dblDistance, , 1)
+		strTop = arrOffset(0)
+		arrClosed = Array(strBase, strTop)
+		Rhino.SelectObjects(arrClosed)
+		Rhino.Command "-Hatch _Enter _Pattern _Hatch1 _Enter _Rotation _45 _Enter _Scale _8 _Enter"
+		Rhino.UnselectAllObjects
+		strHatchL = Rhino.LastCreatedObjects
+		Rhino.ObjectLayer strHatchL, "Carcass Hatch"
+		Rhino.DeleteObjects arrClosed
+	End If
+	
+	Rhino.EnableRedraw(True)
+End Sub

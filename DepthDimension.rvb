@@ -1,0 +1,148 @@
+Option Explicit
+'Script written by <Gordon Leibowitz>
+'Script version Saturday, 22 October 2016 2:17:43 PM
+
+Rhino.AddStartupScript Rhino.LastLoadedScriptFile()
+Rhino.AddAlias "DimDepth", "_NoEcho _-Runscript (DimDepth)"
+
+'Call Main()
+'Call Test()
+Sub DimDepth()
+	'Fix Rounding Function
+	'If all corners are the same put text in the middle
+	Dim strSelection, arrSelection, strSrf, strBasePoint, dblAdj
+	Dim strTempCplane
+	Dim blnSame, vecMid, strExtract, arrSrfPoints, strSrfPoints, strZVal
+	Dim strGroup, x, i, dblTextSize
+	
+	dblTextSize = 5
+	
+	strSelection = Rhino.GetObject("Choose Object to depth Dimension", 0, True, True)
+	
+	strTempCplane = "TempCPlane"
+	Rhino.AddNamedCPlane(strTempCplane)
+	Rhino.Command "_CPlane _View"
+		
+	strBasePoint = Rhino.GetPoint("Select 0 level")
+	strBasePoint = Rhino.XformWorldToCPlane(strBasePoint, Rhino.ViewCPlane())
+	dblAdj = strBasePoint(2)
+	strBasePoint = Rhino.XformCPlanetoWorld(strBasePoint, Rhino.ViewCPlane())
+	
+	Rhino.EnableRedraw False
+	If Rhino.IsPolysurface(strSelection) Then
+		strSelection = Rhino.CopyObject(strSelection)
+		arrSelection = Rhino.ExplodePolysurfaces(strSelection, True)
+		For Each strSrf In arrSelection
+			arrSrfPoints = Rhino.SurfacePoints(strSrf)
+			
+			For x = 0 To UBound(arrSrfPoints)
+				arrSrfPoints(x) = Rhino.XformWorldToCPlane(arrSrfPoints(x), Rhino.ViewCPlane())
+			Next
+			
+			blnSame = CheckIfSame(arrSrfPoints)
+			If blnSame = True Then
+				PlaceTextMid arrSrfPoints, dblAdj, dblTextSize
+			Else
+				PlaceTextCorners arrSrfPoints, dblAdj, dblTextSize
+			End If
+			
+			For x = 0 To UBound(arrSrfPoints)
+				arrSrfPoints(x) = Rhino.XformCPlaneToWorld(arrSrfPoints(x), Rhino.ViewCPlane())
+			Next
+			'For Each strSrfPoints In arrSrfPoints
+			'	strSrfPoints = Rhino.XformWorldToCPlane(strSrfPoints, Rhino.ViewCPlane())
+			'	strZVal = RoundToNearest(strSrfPoints(2) - dblAdj, 1, True)
+			'	strSrfPoints = Rhino.XformCPlanetoWorld(strSrfPoints, Rhino.ViewCPlane())
+			'	Rhino.AddText strZVal, strSrfPoints,dblTextSize, , 0, 4
+			'Next
+		Next
+
+		Rhino.DeleteObjects(arrSelection)
+		Rhino.RestoreNamedCPlane(strTempCplane)
+		Rhino.DeleteNamedCPlane(strTempCplane)
+		'Rhino.UnselectAllObjects
+		'Rhino.Command "_Seldup _Delete"
+	Else
+		arrSrfPoints = Rhino.SurfacePoints(strSelection)
+		For x = 0 To UBound(arrSrfPoints)
+			arrSrfPoints(x) = Rhino.XformWorldToCPlane(arrSrfPoints(x), Rhino.ViewCPlane())
+		Next
+		blnSame = CheckIfSame(arrSrfPoints)
+		If blnSame = True Then
+			PlaceTextMid arrSrfPoints, dblAdj, dblTextSize
+		Else
+			PlaceTextCorners arrSrfPoints, dblAdj, dblTextSize
+		End If
+		For x = 0 To UBound(arrSrfPoints)
+			arrSrfPoints(x) = Rhino.XformCPlaneToWorld(arrSrfPoints(x), Rhino.ViewCPlane())
+		Next
+	End If
+	Rhino.EnableRedraw True
+	'Rhino.AddText "0", Array(0, 0, 0), dblTextSize, , 0, 4
+End Sub
+
+Sub Test()
+	Dim arrData, strSame
+	arrData = Array(Array(0, 0, 2), Array(1, 2, 0), Array(4, 5, 0))
+	strSame = CheckIfSame(arrData)
+	
+End Sub
+
+Function RoundToNearest(Amt, RoundAmt, bRoundUp)
+	On Error Resume Next
+	Dim Temp : Temp = Amt / RoundAmt
+	If Int(Temp) = Temp Then
+		RoundToNearest = Amt
+	Else
+		If (bRoundUp = True) Then
+			Temp = Int(Temp) + 1
+		Else
+			Temp = Int(Temp)
+		End If
+		RoundToNearest = Temp * RoundAmt
+	End If
+End Function
+
+Function CheckIfSame(arrPoints)
+	Dim x, arrTest, blnTest, strPoint, blnSame
+	arrTest = arrPoints(0)
+	blnTest = arrTest(2)
+	For Each strPoint In arrPoints
+		If blnTest = strPoint(2) Then
+			blnSame = True
+		Else
+			blnSame = False
+			Exit Function
+		End If
+	Next
+	CheckIfSame = blnSame
+	'Rhino.Print "True"
+End Function
+
+Function PlaceTextCorners(arrPoints, dblNum, dblTextSize)
+	Dim strPoint, strText
+	For Each strPoint In arrPoints
+		'strPoint = Rhino.XformWorldToCPlane(strPoint, Rhino.ViewCPlane())
+		strText = RoundToNearest(strPoint(2) - dblNum, 1, True)
+		strPoint = Rhino.XformCPlanetoWorld(strPoint, Rhino.ViewCPlane())
+		Rhino.AddText strText, strPoint, dblTextSize, , 0, 4
+	Next
+End Function
+
+Function PlaceTextMid(arrPoints, dblNum, dblTextSize)
+	Dim MidPoint, x, strText
+	'	For x = 0 To UBound(arrPoints)
+	'		arrPoints(x) = Rhino.XformWorldToCPlane(arrPoints(x), Rhino.ViewCPlane())
+	'	Next
+	MidPoint = arrPoints(0)
+	For x = 0 To Ubound(arrPoints) - 1
+		Rhino.AddPoint(arrPoints(x))
+		MidPoint = Rhino.VectorAdd(MidPoint, arrPoints(x + 1))
+	Next
+	MidPoint = Rhino.VectorDivide(MidPoint, Ubound(arrPoints) + 1)
+	'MidPoint = Rhino.XformWorldToCPlane(MidPoint, Rhino.ViewCPlane())
+	strText = RoundToNearest(MidPoint(2) - dblNum, 1, True)
+	MidPoint = Rhino.XformCPlanetoWorld(MidPoint, Rhino.ViewCPlane())
+	Rhino.AddText strText, MidPoint, dblTextSize, , 0, 4
+	Rhino.AddPoint(MidPoint)
+End Function
